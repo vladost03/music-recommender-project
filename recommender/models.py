@@ -23,8 +23,6 @@ class TrackRecommendation(models.Model):
 
 class UserPreference(models.Model):
     user_session_key = models.CharField(max_length=100)  # Унікальний ключ сесії
-    favorite_genres = models.CharField(max_length=255, blank=True)
-    favorite_artists = models.CharField(max_length=255, blank=True)
     genre = models.CharField(max_length=100, blank=True)
     mood = models.CharField(max_length=100, blank=True)
     tempo = models.IntegerField(null=True, blank=True)

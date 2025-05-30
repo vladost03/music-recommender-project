@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -79,3 +80,9 @@ def recommendations(request):
         )
 
     return render(request, 'recommender/recommendations.html', {'tracks': tracks})
+
+@login_required
+def recommendations_view(request):
+    user = request.user
+    recommendations = TrackRecommendation.objects.filter(user=user).order_by('-recommended_at')
+    return render(request, 'recommender/recommendations.html', {'recommendations': recommendations})

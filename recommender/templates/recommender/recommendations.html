@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="container">
+    <h2>Ваші музичні рекомендації</h2>
+
+    {% if recommendations %}
+      <ul>
+        {% for track in recommendations %}
+          <li>
+            <strong>{{ track.track_name }}</strong> від {{ track.artist_name }}
+            <br>
+            <a href="{{ track.spotify_url }}" target="_blank">Слухати на Spotify</a>
+            <br>
+            <small>Рекомендовано: {{ track.recommended_at|date:"d.m.Y H:i" }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Наразі немає рекомендацій. Заповніть форму вподобань, щоб отримати перші рекомендації.</p>
+    {% endif %}
+  </div>
+{% endblock %}
