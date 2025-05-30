@@ -19,6 +19,9 @@ sp_oauth = SpotifyOAuth(
     scope="user-library-read user-read-playback-state user-top-read"
 )
 
+def welcome(request):
+    return render(request, 'recommender/register.html')
+
 def spotify_login(request):
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
@@ -59,12 +62,31 @@ def recommendations(request):
     if not preference:
         messages.error(request, "Не знайдено вподобань користувача.")
         return redirect('preferences')
+    
+    # Очистити старі рекомендації перед додаванням нових
+    TrackRecommendation.objects.filter(user_session_key=request.session.session_key).delete()
 
     # тут проста логіка — використовуємо жанр як seed (в реальності можна покращити)
     results = sp.recommendations(seed_genres=[preference.genre], limit=10)
 
     tracks = []
     for track in results['tracks']:
+        track_name = track['name']
+        artist_name = track['artists'][0]['name']
+        spotify_url = track['external_urls']['spotify']
+
+        if not TrackRecommendation.objects.filter(
+        user_session_key=request.session.session_key,
+        track_name=track_name,
+        artist_name=artist_name
+        ).exists():
+            TrackRecommendation.objects.create(
+            user_session_key=request.session.session_key,
+            track_name=track_name,
+            artist_name=artist_name,
+            spotify_url=spotify_url
+            )
+
         tracks.append({
             'name': track['name'],
             'artist': track['artists'][0]['name'],
@@ -83,6 +105,7 @@ def recommendations(request):
 
 @login_required
 def recommendations_view(request):
-    user = request.user
-    recommendations = TrackRecommendation.objects.filter(user=user).order_by('-recommended_at')
+    recommendations = TrackRecommendation.objects.filter(
+        user_session_key=request.session.session_key
+    ).order_by('-recommended_at')
     return render(request, 'recommender/recommendations.html', {'recommendations': recommendations})

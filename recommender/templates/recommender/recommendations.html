@@ -1,4 +1,6 @@
-{% extends 'base.html' %}
+{% extends 'recommender/base.html' %}
+
+{% block title %}Рекомендації{% endblock %}
 
 {% block content %}
   <div class="container">
@@ -19,5 +21,8 @@
     {% else %}
       <p>Наразі немає рекомендацій. Заповніть форму вподобань, щоб отримати перші рекомендації.</p>
     {% endif %}
+    <a href="{% url 'preferences' %}" class="btn btn-outline-primary mb-3">
+     Змінити вподобання
+    </a>
   </div>
 {% endblock %}

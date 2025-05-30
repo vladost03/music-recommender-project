@@ -1,0 +1,13 @@
+{% extends 'recommender/base.html' %}
+
+{% block title %}Вітаємо{% endblock %}
+
+{% block content %}
+<div class="text-center mt-5">
+    <h1>🎧 Ласкаво просимо до Music Recommender</h1>
+    <p class="lead">Щоб отримати персоналізовані музичні рекомендації, увійдіть через свій акаунт Spotify.</p>
+    <a class="btn btn-success btn-lg mt-3" href="{% url 'spotify-login' %}">
+        <strong>Увійти через Spotify</strong>
+    </a>
+</div>
+{% endblock %}
