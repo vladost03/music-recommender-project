@@ -13,9 +13,17 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from spotipy.oauth2 import SpotifyOAuth
 
 # Завантаження змінних середовища з .env файлу
 load_dotenv()
+
+sp_oauth = SpotifyOAuth(
+    client_id=os.getenv('SPOTIFY_CLIENT_ID'),
+    client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
+    redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
+    scope="user-library-read user-read-playback-state user-top-read"
+)
 
 # Шлях до кореневої директорії проєкту
 BASE_DIR = Path(__file__).resolve().parent.parent
