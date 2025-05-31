@@ -19,8 +19,27 @@ sp_oauth = SpotifyOAuth(
     scope="user-library-read user-read-playback-state user-top-read user-read-recently-played"
 )
 
+def get_spotify_user_info(request):
+    """Helper function to get Spotify user info if available"""
+    if 'access_token' not in request.session:
+        return None
+    
+    try:
+        access_token = request.session['access_token']
+        sp = spotipy.Spotify(auth=access_token)
+        user_info = sp.current_user()
+        return {
+            'spotify_id': user_info.get('id'),
+            'display_name': user_info.get('display_name', user_info.get('id')),
+            'email': user_info.get('email'),
+            'followers': user_info.get('followers', {}).get('total', 0)
+        }
+    except:
+        return None
+
 def welcome(request):
-    return render(request, 'recommender/register.html')
+    spotify_user = get_spotify_user_info(request)
+    return render(request, 'recommender/register.html', {'spotify_user': spotify_user})
 
 def spotify_login(request):
     auth_url = sp_oauth.get_authorize_url()
@@ -53,6 +72,8 @@ def preference_input(request):
         messages.warning(request, "Будь ласка, авторизуйтесь через Spotify.")
         return redirect('spotify-login')
 
+    spotify_user = get_spotify_user_info(request)
+    
     if request.method == 'POST':
         form = UserPreferenceForm(request.POST)
         if form.is_valid():
@@ -62,7 +83,10 @@ def preference_input(request):
             return redirect('recommendations')
     else:
         form = UserPreferenceForm()
-    return render(request, 'recommender/preferences.html', {'form': form})
+    return render(request, 'recommender/preferences.html', {
+        'form': form, 
+        'spotify_user': spotify_user
+    })
 
 def recommendations(request):
     if 'access_token' not in request.session:
@@ -95,6 +119,8 @@ def recommendations(request):
         else:
             messages.error(request, f"Authentication error: {e}")
             return redirect('spotify-login')
+
+    spotify_user = get_spotify_user_info(request)
 
     # Отримуємо вподобання користувача
     preference = UserPreference.objects.filter(user_session_key=request.session.session_key).last()
@@ -260,11 +286,25 @@ def recommendations(request):
             spotify_url=track['external_urls']['spotify']
         )
 
-    return render(request, 'recommender/recommendations.html', {'tracks': tracks})
+    return render(request, 'recommender/recommendations.html', {
+        'tracks': tracks,
+        'spotify_user': spotify_user
+    })
 
 @login_required
 def recommendations_view(request):
     recommendations = TrackRecommendation.objects.filter(
         user_session_key=request.session.session_key
     ).order_by('-recommended_at')
-    return render(request, 'recommender/recommendations.html', {'recommendations': recommendations})
+    spotify_user = get_spotify_user_info(request)
+    return render(request, 'recommender/recommendations.html', {
+        'recommendations': recommendations,
+        'spotify_user': spotify_user
+    })
+
+def spotify_logout(request):
+    """Clear Spotify session data"""
+    request.session.pop('access_token', None)
+    request.session.pop('refresh_token', None)
+    messages.success(request, "Ви вийшли з Spotify.")
+    return redirect('welcome')

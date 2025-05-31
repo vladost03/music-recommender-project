@@ -10,12 +10,21 @@
         <a class="navbar-brand" href="{% url 'preferences' %}">🎵 Music Recommender</a>
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav ms-auto">
-                {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'recommendations-view' %}">Мої рекомендації</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'logout' %}">Вийти</a>
+                {% if spotify_user %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            🎧 {{ spotify_user.display_name|default:spotify_user.spotify_id }}
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                            <li><h6 class="dropdown-header">Spotify ID: {{ spotify_user.spotify_id }}</h6></li>
+                            {% if spotify_user.email %}
+                                <li><span class="dropdown-item-text text-muted small">{{ spotify_user.email }}</span></li>
+                            {% endif %}
+                            <li><span class="dropdown-item-text text-muted small">Підписників: {{ spotify_user.followers }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'recommendations-view' %}">Мої рекомендації</a></li>
+                            <li><a class="dropdown-item" href="{% url 'spotify-logout' %}">Вийти</a></li>
+                        </ul>
                     </li>
                 {% else %}
                     <li class="nav-item">
