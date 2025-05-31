@@ -165,6 +165,194 @@ def get_search_based_recommendations(sp, genre, limit=10):
         except:
             return []
 
+def get_user_top_genres(sp, limit=50):
+    """
+    Analyze user's recently played tracks to determine top genres
+    """
+    try:
+        # Get recently played tracks
+        recent_tracks = sp.current_user_recently_played(limit=limit)
+        
+        if not recent_tracks or not recent_tracks.get('items'):
+            print("No recent tracks found")
+            return []
+        
+        # Get unique artist IDs from recent tracks
+        artist_ids = []
+        track_artists = set()
+        
+        for item in recent_tracks['items']:
+            track = item['track']
+            for artist in track['artists']:
+                if artist['id'] not in track_artists:
+                    track_artists.add(artist['id'])
+                    artist_ids.append(artist['id'])
+        
+        # Limit to avoid API rate limits
+        artist_ids = artist_ids[:20]
+        
+        if not artist_ids:
+            return []
+        
+        # Get artist details in batches (Spotify API allows max 50 artists per request)
+        all_genres = []
+        batch_size = 20  # Conservative batch size
+        
+        for i in range(0, len(artist_ids), batch_size):
+            batch = artist_ids[i:i + batch_size]
+            try:
+                artists_info = sp.artists(batch)
+                
+                for artist in artists_info['artists']:
+                    if artist and artist.get('genres'):
+                        all_genres.extend(artist['genres'])
+                        
+            except Exception as e:
+                print(f"Error getting artist info for batch: {e}")
+                continue
+        
+        if not all_genres:
+            print("No genres found from artists")
+            return []
+        
+        # Count genre occurrences
+        genre_counts = {}
+        for genre in all_genres:
+            genre_counts[genre] = genre_counts.get(genre, 0) + 1
+        
+        # Sort by popularity and return top 5
+        top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        print(f"User's top genres: {[genre for genre, count in top_genres]}")
+        return [genre for genre, count in top_genres]
+        
+    except Exception as e:
+        print(f"Error analyzing user genres: {e}")
+        return []
+
+def get_personal_mix_recommendations(sp, limit=10):
+    """
+    Get recommendations based on user's top genres from listening history
+    """
+    try:
+        # Get user's top genres
+        top_genres = get_user_top_genres(sp)
+        
+        if not top_genres:
+            print("No top genres found, falling back to user's top tracks")
+            return get_recommendations_from_top_tracks(sp, limit)
+        
+        print(f"Generating personal mix from genres: {top_genres}")
+        
+        all_tracks = []
+        tracks_per_genre = max(2, limit // len(top_genres))  # Distribute tracks across genres
+        
+        for genre in top_genres:
+            try:
+                # Search for tracks in this genre
+                search_queries = [
+                    f'genre:"{genre}"',
+                    f'{genre}',
+                    f'{genre} popular'
+                ]
+                
+                genre_tracks = []
+                for query in search_queries:
+                    try:
+                        results = sp.search(q=query, type='track', limit=tracks_per_genre)
+                        if results['tracks']['items']:
+                            genre_tracks.extend(results['tracks']['items'])
+                            break  # Use first successful query
+                    except Exception as e:
+                        print(f"Search failed for query '{query}': {e}")
+                        continue
+                
+                # Add tracks from this genre
+                if genre_tracks:
+                    # Remove duplicates and add to main list
+                    seen_ids = set(track['id'] for track in all_tracks)
+                    for track in genre_tracks:
+                        if track['id'] not in seen_ids:
+                            all_tracks.append(track)
+                            seen_ids.add(track['id'])
+                            if len(all_tracks) >= limit:
+                                break
+                
+                if len(all_tracks) >= limit:
+                    break
+                    
+            except Exception as e:
+                print(f"Error getting tracks for genre '{genre}': {e}")
+                continue
+        
+        # If we don't have enough tracks, try to get user's top tracks
+        if len(all_tracks) < limit // 2:
+            print("Not enough tracks from genres, adding top tracks")
+            top_tracks = get_recommendations_from_top_tracks(sp, limit - len(all_tracks))
+            
+            # Add non-duplicate top tracks
+            seen_ids = set(track['id'] for track in all_tracks)
+            for track in top_tracks:
+                if track['id'] not in seen_ids and len(all_tracks) < limit:
+                    all_tracks.append(track)
+        
+        # Shuffle for variety
+        random.shuffle(all_tracks)
+        return all_tracks[:limit]
+        
+    except Exception as e:
+        print(f"Error in personal mix recommendations: {e}")
+        return get_recommendations_from_top_tracks(sp, limit)
+
+def get_recommendations_from_top_tracks(sp, limit=10):
+    """
+    Fallback: Get recommendations based on user's top tracks
+    """
+    try:
+        # Get user's top tracks (short term = last 4 weeks)
+        top_tracks = sp.current_user_top_tracks(limit=20, time_range='short_term')
+        
+        if not top_tracks or not top_tracks.get('items'):
+            # Try medium term (last 6 months)
+            top_tracks = sp.current_user_top_tracks(limit=20, time_range='medium_term')
+        
+        if not top_tracks or not top_tracks.get('items'):
+            print("No top tracks found")
+            return []
+        
+        # Get artists from top tracks
+        top_artists = set()
+        for track in top_tracks['items']:
+            for artist in track['artists']:
+                top_artists.add(artist['name'])
+        
+        # Search for tracks by these artists
+        all_tracks = []
+        for artist_name in list(top_artists)[:5]:  # Limit to prevent too many API calls
+            try:
+                results = sp.search(q=f'artist:"{artist_name}"', type='track', limit=3)
+                if results['tracks']['items']:
+                    all_tracks.extend(results['tracks']['items'])
+                    
+            except Exception as e:
+                print(f"Error searching for artist '{artist_name}': {e}")
+                continue
+        
+        # Remove duplicates
+        seen_ids = set()
+        unique_tracks = []
+        for track in all_tracks:
+            if track['id'] not in seen_ids:
+                seen_ids.add(track['id'])
+                unique_tracks.append(track)
+        
+        random.shuffle(unique_tracks)
+        return unique_tracks[:limit]
+        
+    except Exception as e:
+        print(f"Error getting recommendations from top tracks: {e}")
+        return []
+    
 def recommendations(request):
     if 'access_token' not in request.session:
         messages.warning(request, "Будь ласка, авторизуйтесь через Spotify.")
