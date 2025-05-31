@@ -6,6 +6,7 @@ import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
+import random
 
 from .forms import UserPreferenceForm
 from .models import TrackRecommendation, UserPreference
@@ -18,32 +19,6 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
     scope="user-library-read user-read-playback-state user-top-read user-read-recently-played"
 )
-
-# Updated list of valid Spotify genre seeds
-VALID_SPOTIFY_GENRES = [
-    'acoustic', 'afrobeat', 'alt-rock', 'alternative', 'ambient', 'anime',
-    'black-metal', 'bluegrass', 'blues', 'bossanova', 'brazil', 'breakbeat',
-    'british', 'cantopop', 'chicago-house', 'children', 'chill', 'classical',
-    'club', 'comedy', 'country', 'dance', 'dancehall', 'death-metal',
-    'deep-house', 'detroit-techno', 'disco', 'disney', 'drum-and-bass',
-    'dub', 'dubstep', 'edm', 'electro', 'electronic', 'emo', 'folk',
-    'forro', 'french', 'funk', 'garage', 'german', 'gospel', 'goth',
-    'grindcore', 'groove', 'grunge', 'guitar', 'happy', 'hard-rock',
-    'hardcore', 'hardstyle', 'heavy-metal', 'hip-hop', 'holidays',
-    'honky-tonk', 'house', 'idm', 'indian', 'indie', 'indie-pop',
-    'industrial', 'iranian', 'j-dance', 'j-idol', 'j-pop', 'j-rock',
-    'jazz', 'k-pop', 'kids', 'latin', 'latino', 'malay', 'mandopop',
-    'metal', 'metal-misc', 'metalcore', 'minimal-techno', 'movies',
-    'mpb', 'new-age', 'new-release', 'opera', 'pagode', 'party',
-    'philippines-opm', 'piano', 'pop', 'pop-film', 'post-dubstep',
-    'power-pop', 'progressive-house', 'psych-rock', 'punk', 'punk-rock',
-    'r-n-b', 'rainy-day', 'reggae', 'reggaeton', 'road-trip', 'rock',
-    'rock-n-roll', 'rockabilly', 'romance', 'sad', 'salsa', 'samba',
-    'sertanejo', 'show-tunes', 'singer-songwriter', 'ska', 'sleep',
-    'songwriter', 'soul', 'soundtracks', 'spanish', 'study', 'summer',
-    'swedish', 'synth-pop', 'tango', 'techno', 'trance', 'trip-hop',
-    'turkish', 'work-out', 'world-music'
-]
 
 def get_spotify_user_info(request):
     """Helper function to get Spotify user info if available"""
@@ -86,10 +61,10 @@ def spotify_callback(request):
         if 'refresh_token' in token_info:
             request.session['refresh_token'] = token_info['refresh_token']
             
-        print(f"Token obtained successfully")  # Debug line
+        print(f"Token obtained successfully")
         return redirect('preferences')
     except Exception as e:
-        print(f"Token error: {e}")  # Debug line
+        print(f"Token error: {e}")
         messages.error(request, "Failed to get access token. Please try again.")
         return redirect('spotify-login')
 
@@ -128,57 +103,67 @@ def refresh_spotify_token(request):
         print(f"Token refresh failed: {e}")
     return request.session.get('access_token')
 
-def get_recommendations_with_fallback(sp, genre_list, limit=10):
+def get_search_based_recommendations(sp, genre, limit=10):
     """
-    Try to get recommendations with multiple fallback strategies
+    Get recommendations using search instead of the deprecated recommendations endpoint
     """
-    results = None
-    used_genre = None
+    # Define search queries for different genres
+    genre_queries = {
+        'rock': ['rock', 'indie rock', 'alternative rock', 'classic rock', 'hard rock'],
+        'pop': ['pop', 'indie pop', 'dance pop', 'electropop', 'synth pop'],
+        'jazz': ['jazz', 'smooth jazz', 'bebop', 'contemporary jazz', 'fusion'],
+        'hip-hop': ['hip hop', 'rap', 'trap', 'conscious hip hop', 'old school hip hop'],
+        'classical': ['classical', 'orchestra', 'piano classical', 'baroque', 'romantic classical'],
+        'electronic': ['electronic', 'house', 'techno', 'ambient', 'downtempo', 'edm'],
+        'reggae': ['reggae', 'dub', 'ska', 'roots reggae', 'dancehall'],
+        'metal': ['metal', 'heavy metal', 'death metal', 'black metal', 'progressive metal'],
+        'blues': ['blues', 'delta blues', 'electric blues', 'blues rock', 'chicago blues'],
+        'country': ['country', 'country rock', 'folk country', 'bluegrass', 'americana']
+    }
     
-    # Method 1: Try each genre in the list
-    for genre in genre_list:
-        if genre in VALID_SPOTIFY_GENRES:
+    queries = genre_queries.get(genre.lower(), [genre])
+    all_tracks = []
+    
+    try:
+        # Search for tracks using multiple queries for variety
+        for query in queries[:3]:  # Use first 3 queries to avoid rate limits
             try:
-                print(f"Trying recommendations for genre: {genre}")
-                # Fixed: Pass seed_genres as a list, not a string
-                results = sp.recommendations(seed_genres=[genre], limit=limit)
-                if results and results.get('tracks'):
-                    print(f"Success! Got {len(results['tracks'])} tracks for {genre}")
-                    used_genre = genre
-                    break
-            except spotipy.exceptions.SpotifyException as e:
-                print(f"Failed for genre {genre}: {e}")
-                continue
+                print(f"Searching for: {query}")
+                
+                # Search for popular tracks in the genre
+                results = sp.search(q=f'genre:"{query}"', type='track', limit=5)
+                if results['tracks']['items']:
+                    all_tracks.extend(results['tracks']['items'])
+                
+                # Also search without genre prefix for more results
+                results = sp.search(q=query, type='track', limit=3)
+                if results['tracks']['items']:
+                    all_tracks.extend(results['tracks']['items'])
+                    
             except Exception as e:
-                print(f"Unexpected error for genre {genre}: {e}")
+                print(f"Search failed for query '{query}': {e}")
                 continue
-    
-    # Method 2: Try client credentials if user auth failed
-    if not results:
+        
+        # Remove duplicates based on track ID
+        seen_ids = set()
+        unique_tracks = []
+        for track in all_tracks:
+            if track['id'] not in seen_ids:
+                seen_ids.add(track['id'])
+                unique_tracks.append(track)
+        
+        # Shuffle and limit results
+        random.shuffle(unique_tracks)
+        return unique_tracks[:limit]
+        
+    except Exception as e:
+        print(f"All search attempts failed: {e}")
+        # Final fallback - search for popular music
         try:
-            from spotipy.oauth2 import SpotifyClientCredentials
-            client_credentials_manager = SpotifyClientCredentials(
-                client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-                client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
-            )
-            sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-            
-            for genre in genre_list:
-                if genre in VALID_SPOTIFY_GENRES:
-                    try:
-                        print(f"Trying client credentials for genre: {genre}")
-                        results = sp_client.recommendations(seed_genres=[genre], limit=limit)
-                        if results and results.get('tracks'):
-                            print(f"Success with client credentials for {genre}!")
-                            used_genre = genre
-                            break
-                    except Exception as e:
-                        print(f"Client credentials failed for {genre}: {e}")
-                        continue
-        except Exception as e:
-            print(f"Client credentials setup failed: {e}")
-    
-    return results, used_genre
+            results = sp.search(q='popular music', type='track', limit=limit)
+            return results['tracks']['items'] if results['tracks']['items'] else []
+        except:
+            return []
 
 def recommendations(request):
     if 'access_token' not in request.session:
@@ -216,59 +201,19 @@ def recommendations(request):
 
     genre = preference.genre.lower().strip()
     
-    # Map user-friendly genres to Spotify genres with priorities
-    genre_mapping = {
-        'rock': ['rock', 'alt-rock', 'indie', 'hard-rock', 'grunge'],
-        'pop': ['pop', 'indie-pop', 'synth-pop', 'pop-film', 'power-pop'],
-        'jazz': ['jazz', 'blues', 'soul', 'funk'],
-        'hip-hop': ['hip-hop', 'r-n-b', 'funk', 'soul'],
-        'classical': ['classical', 'opera', 'piano', 'instrumental'],
-        'electronic': ['electronic', 'edm', 'house', 'techno', 'ambient', 'electro'],
-        'reggae': ['reggae', 'reggaeton', 'dub', 'ska'],
-        'metal': ['metal', 'heavy-metal', 'black-metal', 'death-metal', 'metalcore', 'hard-rock'],
-        'blues': ['blues', 'jazz', 'soul', 'funk', 'r-n-b'],
-        'country': ['country', 'folk', 'bluegrass', 'honky-tonk', 'rockabilly']
-    }
+    # Get recommendations using search-based approach
+    print(f"Getting search-based recommendations for genre: {genre}")
+    tracks_data = get_search_based_recommendations(sp, genre, limit=10)
     
-    # Get possible genres for the selected genre
-    possible_genres = genre_mapping.get(genre, [genre])
-    
-    # Get recommendations with fallback
-    results, used_genre = get_recommendations_with_fallback(sp, possible_genres, limit=10)
-    
-    # Final fallback - search for popular tracks
-    if not results:
-        try:
-            search_query = f"genre:{genre}" if genre in ['rock', 'pop', 'jazz', 'metal', 'blues', 'country'] else 'popular music'
-            print(f"Using search fallback with query: {search_query}")
-            search_results = sp.search(q=search_query, type='track', limit=10)
-            if search_results['tracks']['items']:
-                results = {'tracks': search_results['tracks']['items']}
-                messages.info(request, f"Показуємо популярні треки жанру '{genre}' замість персональних рекомендацій")
-                print("Using search results as fallback")
-        except Exception as e:
-            print(f"Search fallback failed: {e}")
-            
-    # Absolute last resort
-    if not results:
-        try:
-            search_results = sp.search(q='popular', type='track', limit=10)
-            if search_results['tracks']['items']:
-                results = {'tracks': search_results['tracks']['items']}
-                messages.warning(request, "Не вдалося знайти рекомендації для вашого жанру. Показуємо популярні треки.")
-        except:
-            messages.error(request, "Не вдалося отримати рекомендації. Спробуйте пізніше.")
-            return redirect('preferences')
-
-    if not results or not results.get('tracks'):
-        messages.error(request, "Не вдалося знайти треки. Спробуйте інший жанр або пізніше.")
+    if not tracks_data:
+        messages.error(request, "Не вдалося знайти треки для вашого жанру. Спробуйте інший жанр.")
         return redirect('preferences')
 
     # Clear previous recommendations and save new ones
     TrackRecommendation.objects.filter(user_session_key=request.session.session_key).delete()
     tracks = []
     
-    for track in results['tracks']:
+    for track in tracks_data:
         track_data = {
             'name': track['name'],
             'artist': track['artists'][0]['name'],
@@ -283,11 +228,7 @@ def recommendations(request):
             spotify_url=track['external_urls']['spotify']
         )
 
-    # Add success message if we used the exact genre requested
-    if used_genre and used_genre == genre:
-        messages.success(request, f"Знайдено рекомендації для жанру '{genre}'!")
-    elif used_genre:
-        messages.info(request, f"Використано схожий жанр '{used_genre}' для жанру '{genre}'")
+    messages.success(request, f"Знайдено {len(tracks)} рекомендацій для жанру '{genre}'!")
 
     return render(request, 'recommender/recommendations.html', {
         'tracks': tracks,
