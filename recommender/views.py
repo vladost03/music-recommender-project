@@ -80,7 +80,7 @@ def preference_input(request):
             preference = form.save(commit=False)
             preference.user_session_key = request.session.session_key
             preference.save()
-            return redirect('recommendations')
+            return redirect('generate_recommendations')  # Fixed: changed from 'recommendations' to 'generate_recommendations'
     else:
         form = UserPreferenceForm()
     return render(request, 'recommender/preferences.html', {
@@ -291,7 +291,6 @@ def recommendations(request):
         'spotify_user': spotify_user
     })
 
-@login_required
 def recommendations_view(request):
     recommendations = TrackRecommendation.objects.filter(
         user_session_key=request.session.session_key
