@@ -104,7 +104,7 @@ def recommendations(request):
 
     genre = preference.genre.lower().strip()
 
-    # Use a predefined list of common Spotify genres
+    # SOLUTION 1: Use a predefined list of common Spotify genres
     # This avoids the API call that's causing the 404 error
     common_spotify_genres = [
         'acoustic', 'afrobeat', 'alt-rock', 'alternative', 'ambient', 'ancient',
@@ -141,49 +141,101 @@ def recommendations(request):
             messages.error(request, f"Жанр '{genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
         return redirect('preferences')
 
+    # SOLUTION 2: Alternative approach - try to get available genres with better error handling
+    # You can uncomment this if you want to try the original API call with better error handling
+    """
+    try:
+        # Try different methods to get available genres
+        try:
+            # Method 1: Original approach
+            genre_seeds = sp.recommendation_genre_seeds()
+            available_genres = genre_seeds['genres']
+        except:
+            # Method 2: Try making a direct request
+            import requests
+            headers = {'Authorization': f'Bearer {access_token}'}
+            response = requests.get('https://api.spotify.com/v1/recommendations/available-genre-seeds', headers=headers)
+            if response.status_code == 200:
+                available_genres = response.json()['genres']
+            else:
+                # Fallback to common genres
+                available_genres = common_spotify_genres
+    except Exception as e:
+        messages.error(request, f"Помилка при отриmanні жанрів: {e}")
+        available_genres = common_spotify_genres
+
+    if genre not in available_genres:
+        messages.error(request, f"Жанр '{genre}' не підтримується Spotify.")
+        return redirect('preferences')
+    """
+
     # Get recommendations with simpler approach first
     try:
         # Method 1: Try the simplest recommendations call first
-        print(f"Trying recommendations for genre: {genre}")  # Debug line
-        results = sp.recommendations(seed_genres=[genre], limit=10)
+        print(f"Trying recommendations for genre: {final_genre}")  # Debug line
+        results = sp.recommendations(seed_genres=[final_genre], limit=10)
         print(f"Success! Got {len(results['tracks'])} tracks")  # Debug line
         
     except spotipy.exceptions.SpotifyException as e:
         print(f"Method 1 failed with status {e.http_status}: {e}")  # Debug line
         
-        # Method 2: Try using Client Credentials as fallback
-        try:
-            from spotipy.oauth2 import SpotifyClientCredentials
-            client_credentials_manager = SpotifyClientCredentials(
-                client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-                client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
-            )
-            sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-            results = sp_client.recommendations(seed_genres=[genre], limit=10)
-            print("Success with client credentials!")  # Debug line
-            
-        except spotipy.exceptions.SpotifyException as e2:
-            print(f"Method 2 also failed: {e2}")  # Debug line
-            
-            # Method 3: Try with different parameters
+        # Method 2: Try alternative rock genres if original rock failed
+        if final_genre == 'rock':
+            alternative_genres = ['alt-rock', 'rock-n-roll', 'classic-rock', 'indie-rock', 'hard-rock']
+            for alt_genre in alternative_genres:
+                try:
+                    print(f"Trying alternative genre: {alt_genre}")
+                    results = sp.recommendations(seed_genres=[alt_genre], limit=10)
+                    print(f"Success with {alt_genre}!")
+                    final_genre = alt_genre  # Update for display
+                    break
+                except:
+                    continue
+            else:
+                # If all rock alternatives fail, try Client Credentials
+                try:
+                    from spotipy.oauth2 import SpotifyClientCredentials
+                    client_credentials_manager = SpotifyClientCredentials(
+                        client_id=os.getenv('SPOTIFY_CLIENT_ID'),
+                        client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
+                    )
+                    sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+                    results = sp_client.recommendations(seed_genres=['rock'], limit=10)
+                    print("Success with client credentials!")  # Debug line
+                    
+                except Exception as e2:
+                    # Method 3: Try search-based approach as last resort
+                    try:
+                        search_results = sp.search(q='rock', type='track', limit=10)
+                        if search_results['tracks']['items']:
+                            # Convert search results to recommendation format
+                            results = {'tracks': search_results['tracks']['items']}
+                            messages.info(request, "Показуємо популярні рок треки замість персональних рекомендацій")
+                            print("Using search results as fallback")
+                        else:
+                            raise Exception("No search results found")
+                    except Exception as e3:
+                        messages.error(request, f"Не вдалося отримати рекомендації для жанру 'rock'. Спробуйте жанри: pop, jazz, electronic, hip-hop")
+                        return redirect('preferences')
+        else:
+            # For non-rock genres, try client credentials
             try:
-                # Sometimes the API works better with additional parameters
-                results = sp.recommendations(
-                    seed_genres=[genre],
-                    limit=10,
-                    target_energy=0.5,
-                    target_danceability=0.5
+                from spotipy.oauth2 import SpotifyClientCredentials
+                client_credentials_manager = SpotifyClientCredentials(
+                    client_id=os.getenv('SPOTIFY_CLIENT_ID'),
+                    client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
                 )
-                print("Success with additional parameters!")  # Debug line
-            except Exception as e3:
-                print(f"All methods failed: {e3}")  # Debug line
-                if e.http_status == 404:
-                    messages.error(request, f"Рекомендації недоступні для жанру '{genre}'. Спробуйте інший жанр.")
-                elif e.http_status == 401:
+                sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+                results = sp_client.recommendations(seed_genres=[final_genre], limit=10)
+                print("Success with client credentials!")  # Debug line
+                
+            except Exception as e2:
+                print(f"All methods failed: {e2}")  # Debug line
+                if e.http_status == 401:
                     messages.error(request, "Session expired. Please log in again.")
                     return redirect('spotify-login')
                 else:
-                    messages.error(request, f"Помилка Spotify API: {e}")
+                    messages.error(request, f"Рекомендації недоступні для жанру '{final_genre}'. Спробуйте: pop, jazz, electronic, hip-hop")
                 return redirect('preferences')
                 
     except Exception as e:
