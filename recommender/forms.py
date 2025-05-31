@@ -12,6 +12,7 @@ GENRE_CHOICES = [
     ('metal', 'Metal'),
     ('blues', 'Blues'),
     ('country', 'Country'),
+    ('personal_mix', 'Personal Mix (Based on your listening history)'),
 ]
 
 class UserPreferenceForm(forms.ModelForm):
