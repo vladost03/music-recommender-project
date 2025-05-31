@@ -389,12 +389,22 @@ def recommendations(request):
 
     genre = preference.genre.lower().strip()
     
-    # Get recommendations using search-based approach
-    print(f"Getting search-based recommendations for genre: {genre}")
-    tracks_data = get_search_based_recommendations(sp, genre, limit=10)
+    # Check if user selected personal mix
+    if genre == 'personal_mix':
+        print("Getting personal mix recommendations based on user's listening history")
+        tracks_data = get_personal_mix_recommendations(sp, limit=10)
+        recommendation_type = "персонального міксу на основі вашої історії прослуховування"
+    else:
+        # Get recommendations using search-based approach for specific genre
+        print(f"Getting search-based recommendations for genre: {genre}")
+        tracks_data = get_search_based_recommendations(sp, genre, limit=10)
+        recommendation_type = f"жанру '{genre}'"
     
     if not tracks_data:
-        messages.error(request, "Не вдалося знайти треки для вашого жанру. Спробуйте інший жанр.")
+        if genre == 'personal_mix':
+            messages.error(request, "Не вдалося створити персональний мікс. Можливо, у вас недостатньо історії прослуховування. Спробуйте обрати конкретний жанр.")
+        else:
+            messages.error(request, "Не вдалося знайти треки для вашого жанру. Спробуйте інший жанр.")
         return redirect('preferences')
 
     # Clear previous recommendations and save new ones
@@ -409,7 +419,7 @@ def recommendations(request):
             spotify_url=track['external_urls']['spotify']
         )
 
-    messages.success(request, f"Знайдено {len(tracks_data)} рекомендацій для жанру '{genre}'!")
+    messages.success(request, f"Знайдено {len(tracks_data)} рекомендацій для {recommendation_type}!")
 
     # Get the saved recommendations to display
     recommendations = TrackRecommendation.objects.filter(
