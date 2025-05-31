@@ -2,6 +2,7 @@ from django import forms
 from .models import UserPreference
 
 GENRE_CHOICES = [
+    ('personal_mix', 'Personal Mix (Based on your listening history)'),
     ('rock', 'Rock'),
     ('pop', 'Pop'),
     ('jazz', 'Jazz'),
@@ -12,7 +13,6 @@ GENRE_CHOICES = [
     ('metal', 'Metal'),
     ('blues', 'Blues'),
     ('country', 'Country'),
-    ('personal_mix', 'Personal Mix (Based on your listening history)'),
 ]
 
 class UserPreferenceForm(forms.ModelForm):
