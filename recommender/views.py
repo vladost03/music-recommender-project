@@ -126,7 +126,7 @@ def get_search_based_recommendations(sp, genre, limit=10):
     
     try:
         # Search for tracks using multiple queries for variety
-        for query in queries[:3]:  # Use first 3 queries to avoid rate limits
+        for query in queries[:5]:  # Use first 3 queries to avoid rate limits
             try:
                 print(f"Searching for: {query}")
                 
