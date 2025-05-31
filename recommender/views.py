@@ -104,22 +104,23 @@ def recommendations(request):
 
     genre = preference.genre.lower().strip()
     
-    # Map user-friendly genres to Spotify genres
+    # Map user-friendly genres to Spotify genres with alternatives
     genre_mapping = {
-        'rock': 'rock',
-        'pop': 'pop',
-        'jazz': 'jazz',
-        'hip-hop': 'hip-hop',
-        'classical': 'classical',
-        'electronic': 'electronic',
-        'reggae': 'reggae',
-        'metal': 'metal',
-        'blues': 'blues',
-        'country': 'country'
+        'rock': ['rock', 'alt-rock', 'indie-rock', 'classic-rock'],
+        'pop': ['pop', 'indie-pop', 'synth-pop', 'pop-film'],
+        'jazz': ['jazz', 'smooth-jazz', 'bebop', 'swing'],
+        'hip-hop': ['hip-hop', 'rap', 'trap', 'old-school'],
+        'classical': ['classical', 'opera', 'piano', 'orchestral'],
+        'electronic': ['electronic', 'edm', 'house', 'techno', 'ambient'],
+        'reggae': ['reggae', 'reggaeton', 'dub', 'ska'],
+        'metal': ['metal', 'black-metal', 'death-metal', 'metalcore', 'heavy-metal'],
+        'blues': ['blues', 'country-blues', 'electric-blues', 'acoustic-blues'],
+        'country': ['country', 'folk', 'bluegrass', 'americana']
     }
     
-    # Set final_genre based on mapping or default to original genre
-    final_genre = genre_mapping.get(genre, genre)
+    # Get list of possible genres for the selected genre
+    possible_genres = genre_mapping.get(genre, [genre])
+    final_genre = possible_genres[0]  # Start with the first option
 
     # SOLUTION 1: Use a predefined list of common Spotify genres
     # This avoids the API call that's causing the 404 error
@@ -148,68 +149,48 @@ def recommendations(request):
         'trance', 'trip-hop', 'turkish', 'work-out', 'world-music'
     ]
 
-    # Check if genre is in our predefined list
-    if final_genre not in common_spotify_genres:
+    # Check if any of the possible genres are in our predefined list
+    valid_genres = [g for g in possible_genres if g in common_spotify_genres]
+    if not valid_genres:
         # Try to find a close match or suggest alternatives
-        similar_genres = [g for g in common_spotify_genres if final_genre in g or g in final_genre]
+        similar_genres = []
+        for possible_genre in possible_genres:
+            similar_genres.extend([g for g in common_spotify_genres if possible_genre in g or g in possible_genre])
+        
         if similar_genres:
-            messages.warning(request, f"Жанр '{final_genre}' не знайдено. Спробуйте один з цих: {', '.join(similar_genres[:5])}")
+            final_genre = similar_genres[0]  # Use the first similar genre found
+            messages.info(request, f"Використовуємо схожий жанр '{final_genre}' замість '{genre}'")
         else:
-            messages.error(request, f"Жанр '{final_genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
-        return redirect('preferences')
+            messages.error(request, f"Жанр '{genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
+            return redirect('preferences')
+    else:
+        final_genre = valid_genres[0]  # Use the first valid genre
 
-    # Get recommendations with simpler approach first
+    # Get recommendations with multiple fallback strategies
+    results = None
+    
     try:
-        # Method 1: Try the simplest recommendations call first
-        print(f"Trying recommendations for genre: {final_genre}")  # Debug line
+        # Method 1: Try the primary genre
+        print(f"Trying recommendations for genre: {final_genre}")
         results = sp.recommendations(seed_genres=[final_genre], limit=10)
-        print(f"Success! Got {len(results['tracks'])} tracks")  # Debug line
+        print(f"Success! Got {len(results['tracks'])} tracks")
         
     except spotipy.exceptions.SpotifyException as e:
-        print(f"Method 1 failed with status {e.http_status}: {e}")  # Debug line
+        print(f"Method 1 failed with status {e.http_status}: {e}")
         
-        # Method 2: Try alternative rock genres if original rock failed
-        if final_genre == 'rock':
-            alternative_genres = ['alt-rock', 'rock-n-roll', 'indie-rock', 'punk-rock']
-            results = None
-            for alt_genre in alternative_genres:
-                try:
-                    print(f"Trying alternative genre: {alt_genre}")
-                    results = sp.recommendations(seed_genres=[alt_genre], limit=10)
-                    print(f"Success with {alt_genre}!")
-                    final_genre = alt_genre  # Update for display
-                    break
-                except:
-                    continue
-            
-            if not results:
-                # If all rock alternatives fail, try Client Credentials
-                try:
-                    from spotipy.oauth2 import SpotifyClientCredentials
-                    client_credentials_manager = SpotifyClientCredentials(
-                        client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-                        client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
-                    )
-                    sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-                    results = sp_client.recommendations(seed_genres=['rock'], limit=10)
-                    print("Success with client credentials!")  # Debug line
-                    
-                except Exception as e2:
-                    # Method 3: Try search-based approach as last resort
-                    try:
-                        search_results = sp.search(q='rock', type='track', limit=10)
-                        if search_results['tracks']['items']:
-                            # Convert search results to recommendation format
-                            results = {'tracks': search_results['tracks']['items']}
-                            messages.info(request, "Показуємо популярні рок треки замість персональних рекомендацій")
-                            print("Using search results as fallback")
-                        else:
-                            raise Exception("No search results found")
-                    except Exception as e3:
-                        messages.error(request, f"Не вдалося отримати рекомендації для жанру 'rock'. Спробуйте жанри: pop, jazz, electronic, hip-hop")
-                        return redirect('preferences')
-        else:
-            # For non-rock genres, try client credentials
+        # Method 2: Try alternative genres for the selected category
+        for alt_genre in possible_genres[1:]:  # Skip the first one we already tried
+            try:
+                print(f"Trying alternative genre: {alt_genre}")
+                results = sp.recommendations(seed_genres=[alt_genre], limit=10)
+                print(f"Success with {alt_genre}!")
+                final_genre = alt_genre
+                break
+            except:
+                continue
+        
+        # Method 3: Try Client Credentials if user auth failed
+        if not results:
             try:
                 from spotipy.oauth2 import SpotifyClientCredentials
                 client_credentials_manager = SpotifyClientCredentials(
@@ -217,22 +198,51 @@ def recommendations(request):
                     client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
                 )
                 sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-                results = sp_client.recommendations(seed_genres=[final_genre], limit=10)
-                print("Success with client credentials!")  # Debug line
                 
+                # Try each possible genre with client credentials
+                for attempt_genre in possible_genres:
+                    try:
+                        results = sp_client.recommendations(seed_genres=[attempt_genre], limit=10)
+                        final_genre = attempt_genre
+                        print(f"Success with client credentials using {attempt_genre}!")
+                        break
+                    except:
+                        continue
+                        
             except Exception as e2:
-                print(f"All methods failed: {e2}")  # Debug line
-                if hasattr(e, 'http_status') and e.http_status == 401:
-                    messages.error(request, "Session expired. Please log in again.")
-                    return redirect('spotify-login')
+                print(f"Client credentials failed: {e2}")
+        
+        # Method 4: Search-based fallback
+        if not results:
+            try:
+                search_query = genre if genre in ['rock', 'pop', 'jazz', 'metal', 'blues'] else 'popular music'
+                search_results = sp.search(q=search_query, type='track', limit=10)
+                if search_results['tracks']['items']:
+                    results = {'tracks': search_results['tracks']['items']}
+                    messages.info(request, f"Показуємо популярні треки жанру '{genre}' замість персональних рекомендацій")
+                    print("Using search results as fallback")
                 else:
-                    messages.error(request, f"Рекомендації недоступні для жанру '{final_genre}'. Спробуйте: pop, jazz, electronic, hip-hop")
-                return redirect('preferences')
+                    raise Exception("No search results found")
+            except Exception as e3:
+                print(f"Search fallback failed: {e3}")
                 
     except Exception as e:
-        print(f"General error: {e}")  # Debug line
-        messages.error(request, f"Загальна помилка: {e}")
-        return redirect('preferences')
+        print(f"General error: {e}")
+        
+    # Final fallback - if everything fails, try basic popular tracks
+    if not results:
+        try:
+            # Try to get some popular tracks as absolute last resort
+            search_results = sp.search(q='popular', type='track', limit=10)
+            if search_results['tracks']['items']:
+                results = {'tracks': search_results['tracks']['items']}
+                messages.warning(request, "Не вдалося знайти рекомендації для вашого жанру. Показуємо популярні треки.")
+            else:
+                messages.error(request, "Не вдалося отримати рекомендації. Спробуйте пізніше або оберіть інший жанр.")
+                return redirect('preferences')
+        except:
+            messages.error(request, "Не вдалося отримати рекомендації. Перевірте підключення до інтернету та спробуйте пізніше.")
+            return redirect('preferences')
 
     # Clear previous recommendations and save new ones
     TrackRecommendation.objects.filter(user_session_key=request.session.session_key).delete()
