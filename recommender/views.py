@@ -28,10 +28,25 @@ def spotify_login(request):
 
 def spotify_callback(request):
     code = request.GET.get('code')
-    token_info = sp_oauth.get_access_token(code)
-    access_token = token_info['access_token']
-    request.session['access_token'] = access_token
-    return redirect('preferences')
+    if not code:
+        messages.error(request, "Authorization failed. Please try again.")
+        return redirect('spotify-login')
+        
+    try:
+        token_info = sp_oauth.get_access_token(code)
+        access_token = token_info['access_token']
+        request.session['access_token'] = access_token
+        
+        # Store refresh token if available
+        if 'refresh_token' in token_info:
+            request.session['refresh_token'] = token_info['refresh_token']
+            
+        print(f"Token obtained successfully")  # Debug line
+        return redirect('preferences')
+    except Exception as e:
+        print(f"Token error: {e}")  # Debug line
+        messages.error(request, "Failed to get access token. Please try again.")
+        return redirect('spotify-login')
 
 def preference_input(request):
     if 'access_token' not in request.session:
@@ -55,7 +70,31 @@ def recommendations(request):
         return redirect('spotify-login')
 
     access_token = request.session['access_token']
+    
+    # Try to refresh token if it's expired
+    try:
+        token_info = sp_oauth.refresh_access_token(request.session.get('refresh_token'))
+        if token_info:
+            access_token = token_info['access_token']
+            request.session['access_token'] = access_token
+            if 'refresh_token' in token_info:
+                request.session['refresh_token'] = token_info['refresh_token']
+    except:
+        pass  # Continue with existing token
+    
     sp = spotipy.Spotify(auth=access_token)
+    
+    # Test if the token works by trying a simple API call
+    try:
+        user_info = sp.current_user()
+        print(f"User authenticated: {user_info['id']}")  # Debug line
+    except spotipy.exceptions.SpotifyException as e:
+        if e.http_status == 401:
+            messages.error(request, "Session expired. Please log in again.")
+            return redirect('spotify-login')
+        else:
+            messages.error(request, f"Authentication error: {e}")
+            return redirect('spotify-login')
 
     # Отримуємо вподобання користувача
     preference = UserPreference.objects.filter(user_session_key=request.session.session_key).last()
@@ -102,53 +141,54 @@ def recommendations(request):
             messages.error(request, f"Жанр '{genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
         return redirect('preferences')
 
-    # Get recommendations with better error handling and debugging
+    # Get recommendations with simpler approach first
     try:
-        # First, let's try to get user's top tracks to use as seed tracks
-        # This might work better than just using genre seeds
-        try:
-            top_tracks = sp.current_user_top_tracks(limit=5, time_range='medium_term')
-            if top_tracks['items']:
-                # Use a combination of seed tracks and genre
-                seed_tracks = [track['id'] for track in top_tracks['items'][:2]]
-                results = sp.recommendations(
-                    seed_tracks=seed_tracks,
-                    seed_genres=[genre],
-                    limit=10
-                )
-            else:
-                # Fallback to genre-only recommendations
-                results = sp.recommendations(seed_genres=[genre], limit=10)
-        except:
-            # If top tracks fail, try with popular artists from the genre
-            # Search for popular tracks in the genre first
-            search_results = sp.search(q=f'genre:{genre}', type='track', limit=5)
-            if search_results['tracks']['items']:
-                # Use artist seeds instead
-                seed_artists = list(set([track['artists'][0]['id'] for track in search_results['tracks']['items'][:2]]))
-                results = sp.recommendations(
-                    seed_artists=seed_artists,
-                    seed_genres=[genre],
-                    limit=10
-                )
-            else:
-                # Last fallback - just genre
-                results = sp.recommendations(seed_genres=[genre], limit=10)
-                
+        # Method 1: Try the simplest recommendations call first
+        print(f"Trying recommendations for genre: {genre}")  # Debug line
+        results = sp.recommendations(seed_genres=[genre], limit=10)
+        print(f"Success! Got {len(results['tracks'])} tracks")  # Debug line
+        
     except spotipy.exceptions.SpotifyException as e:
-        # More detailed error handling
-        if e.http_status == 404:
-            messages.error(request, f"Spotify API endpoint not found. This might be a temporary issue. Please try again later.")
-        elif e.http_status == 401:
-            messages.error(request, "Authorization expired. Please log in again.")
-            return redirect('spotify-login')
-        elif e.http_status == 403:
-            messages.error(request, "Access forbidden. Check your Spotify app permissions.")
-        else:
-            messages.error(request, f"Spotify API error: {e}")
-        return redirect('preferences')
+        print(f"Method 1 failed with status {e.http_status}: {e}")  # Debug line
+        
+        # Method 2: Try using Client Credentials as fallback
+        try:
+            from spotipy.oauth2 import SpotifyClientCredentials
+            client_credentials_manager = SpotifyClientCredentials(
+                client_id=os.getenv('SPOTIFY_CLIENT_ID'),
+                client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
+            )
+            sp_client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+            results = sp_client.recommendations(seed_genres=[genre], limit=10)
+            print("Success with client credentials!")  # Debug line
+            
+        except spotipy.exceptions.SpotifyException as e2:
+            print(f"Method 2 also failed: {e2}")  # Debug line
+            
+            # Method 3: Try with different parameters
+            try:
+                # Sometimes the API works better with additional parameters
+                results = sp.recommendations(
+                    seed_genres=[genre],
+                    limit=10,
+                    target_energy=0.5,
+                    target_danceability=0.5
+                )
+                print("Success with additional parameters!")  # Debug line
+            except Exception as e3:
+                print(f"All methods failed: {e3}")  # Debug line
+                if e.http_status == 404:
+                    messages.error(request, f"Рекомендації недоступні для жанру '{genre}'. Спробуйте інший жанр.")
+                elif e.http_status == 401:
+                    messages.error(request, "Session expired. Please log in again.")
+                    return redirect('spotify-login')
+                else:
+                    messages.error(request, f"Помилка Spotify API: {e}")
+                return redirect('preferences')
+                
     except Exception as e:
-        messages.error(request, f"Загальна помилка при отриманні рекомендацій: {e}")
+        print(f"General error: {e}")  # Debug line
+        messages.error(request, f"Загальна помилка: {e}")
         return redirect('preferences')
 
     # Clear previous recommendations and save new ones
