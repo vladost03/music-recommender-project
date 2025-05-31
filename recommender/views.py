@@ -211,16 +211,9 @@ def recommendations(request):
 
     # Clear previous recommendations and save new ones
     TrackRecommendation.objects.filter(user_session_key=request.session.session_key).delete()
-    tracks = []
     
+    # Save new recommendations to database
     for track in tracks_data:
-        track_data = {
-            'name': track['name'],
-            'artist': track['artists'][0]['name'],
-            'url': track['external_urls']['spotify']
-        }
-        tracks.append(track_data)
-        
         TrackRecommendation.objects.create(
             user_session_key=request.session.session_key,
             track_name=track['name'],
@@ -228,10 +221,15 @@ def recommendations(request):
             spotify_url=track['external_urls']['spotify']
         )
 
-    messages.success(request, f"Знайдено {len(tracks)} рекомендацій для жанру '{genre}'!")
+    messages.success(request, f"Знайдено {len(tracks_data)} рекомендацій для жанру '{genre}'!")
+
+    # Get the saved recommendations to display
+    recommendations = TrackRecommendation.objects.filter(
+        user_session_key=request.session.session_key
+    ).order_by('-recommended_at')
 
     return render(request, 'recommender/recommendations.html', {
-        'tracks': tracks,
+        'recommendations': recommendations,
         'spotify_user': spotify_user
     })
 

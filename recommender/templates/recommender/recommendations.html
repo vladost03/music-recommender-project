@@ -4,25 +4,46 @@
 
 {% block content %}
   <div class="container">
-    <h2>Ваші музичні рекомендації</h2>
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <h2 class="text-center mb-4">🎵 Ваші музичні рекомендації</h2>
 
-    {% if recommendations %}
-      <ul>
-        {% for track in recommendations %}
-          <li>
-            <strong>{{ track.track_name }}</strong> від {{ track.artist_name }}
-            <br>
-            <a href="{{ track.spotify_url }}" target="_blank">Слухати на Spotify</a>
-            <br>
-            <small>Рекомендовано: {{ track.recommended_at|date:"d.m.Y H:i" }}</small>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>Наразі немає рекомендацій. Заповніть форму вподобань, щоб отримати перші рекомендації.</p>
-    {% endif %}
-    <a href="{% url 'preferences' %}" class="btn btn-outline-primary mb-3">
-     Змінити вподобання
-    </a>
+        {% if recommendations %}
+          <div class="row">
+            {% for track in recommendations %}
+              <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h5 class="card-title">{{ track.track_name }}</h5>
+                    <p class="card-text">
+                      <strong>Виконавець:</strong> {{ track.artist_name }}<br>
+                      <small class="text-muted">Рекомендовано: {{ track.recommended_at|date:"d.m.Y H:i" }}</small>
+                    </p>
+                  </div>
+                  <div class="card-footer">
+                    <a href="{{ track.spotify_url }}" target="_blank" class="btn btn-success btn-sm">
+                      🎧 Слухати на Spotify
+                    </a>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center">
+            <div class="alert alert-info" role="alert">
+              <h4 class="alert-heading">Немає рекомендацій</h4>
+              <p>Наразі немає рекомендацій. Заповніть форму вподобань, щоб отримати перші рекомендації.</p>
+            </div>
+          </div>
+        {% endif %}
+        
+        <div class="text-center mt-4">
+          <a href="{% url 'preferences' %}" class="btn btn-outline-primary">
+            🔄 Змінити вподобання
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 {% endblock %}
