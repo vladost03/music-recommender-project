@@ -22,7 +22,7 @@ sp_oauth = SpotifyOAuth(
     client_id=os.getenv('SPOTIFY_CLIENT_ID'),
     client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
     redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
-    scope="user-library-read user-read-playback-state user-top-read"
+    scope="user-library-read user-read-playback-state user-top-read user-read-recently-played"
 )
 
 # Шлях до кореневої директорії проєкту

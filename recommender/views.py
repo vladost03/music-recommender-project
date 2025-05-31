@@ -307,8 +307,8 @@ def get_personal_mix_recommendations(sp, limit=10):
                     f'{genre} popular',  # Popular in genre
                 ]
                 
-                # Use different strategies for different genres
-                strategy = search_strategies[i % len(search_strategies)]
+                # Randomly select a strategy for this genre
+                strategy = random.choice(search_strategies)
                 
                 print(f"Searching with strategy: {strategy}")
                 
