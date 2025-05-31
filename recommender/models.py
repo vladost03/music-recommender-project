@@ -12,22 +12,20 @@ class UserProfile(models.Model):
 
 
 class TrackRecommendation(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     track_name = models.CharField(max_length=255)
     artist_name = models.CharField(max_length=255)
     spotify_url = models.URLField()
+    user_session_key = models.CharField(max_length=255)
     recommended_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f'{self.track_name} by {self.artist_name}'
 
 class UserPreference(models.Model):
-    user_session_key = models.CharField(max_length=100)  # Унікальний ключ сесії
-    genre = models.CharField(max_length=100, blank=True)
-    mood = models.CharField(max_length=100, blank=True)
-    tempo = models.IntegerField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    user_session_key = models.CharField(max_length=255, null=True, blank=True) # Унікальний ключ сесії
+    genre = models.CharField(max_length=50)
+    
     def __str__(self):
-        return f'Preferences ({self.user_session_key})'
+        return f"Preference ({self.genre})"
+    
 

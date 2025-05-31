@@ -57,43 +57,46 @@ def recommendations(request):
     access_token = request.session['access_token']
     sp = spotipy.Spotify(auth=access_token)
 
-    # отримуємо останні вподобання користувача
+    # Отримуємо вподобання користувача
     preference = UserPreference.objects.filter(user_session_key=request.session.session_key).last()
     if not preference:
         messages.error(request, "Не знайдено вподобань користувача.")
         return redirect('preferences')
-    
-    # Очистити старі рекомендації перед додаванням нових
+
+    genre = preference.genre.lower().strip()  # нормалізуємо
+
+    # Отримуємо список доступних жанрів
+    try:
+        genre_seeds = sp.recommendation_genre_seeds()
+        available_genres = genre_seeds['genres']
+    except spotipy.exceptions.SpotifyException as e:
+        messages.error(request, f"Spotify API error при отриманні жанрів: {e}")
+        return redirect('preferences')
+    except Exception as e:
+        messages.error(request, f"Загальна помилка при отриманні жанрів: {e}")
+        return redirect('preferences')
+
+    # Перевірка, чи жанр підтримується
+    if genre not in available_genres:
+        messages.error(request, f"Жанр '{genre}' не підтримується Spotify.")
+        return redirect('preferences')
+
+    # Отримання рекомендацій
+    try:
+        results = sp.recommendations(seed_genres=[genre], limit=10)
+    except spotipy.exceptions.SpotifyException as e:
+        messages.error(request, f"Spotify error при отриманні рекомендацій: {e}")
+        return redirect('preferences')
+
+    # Зберігання результатів
     TrackRecommendation.objects.filter(user_session_key=request.session.session_key).delete()
-
-    # тут проста логіка — використовуємо жанр як seed (в реальності можна покращити)
-    results = sp.recommendations(seed_genres=[preference.genre], limit=10)
-
     tracks = []
     for track in results['tracks']:
-        track_name = track['name']
-        artist_name = track['artists'][0]['name']
-        spotify_url = track['external_urls']['spotify']
-
-        if not TrackRecommendation.objects.filter(
-        user_session_key=request.session.session_key,
-        track_name=track_name,
-        artist_name=artist_name
-        ).exists():
-            TrackRecommendation.objects.create(
-            user_session_key=request.session.session_key,
-            track_name=track_name,
-            artist_name=artist_name,
-            spotify_url=spotify_url
-            )
-
         tracks.append({
             'name': track['name'],
             'artist': track['artists'][0]['name'],
             'url': track['external_urls']['spotify']
         })
-
-        # зберігаємо у базу
         TrackRecommendation.objects.create(
             user_session_key=request.session.session_key,
             track_name=track['name'],
@@ -102,6 +105,8 @@ def recommendations(request):
         )
 
     return render(request, 'recommender/recommendations.html', {'tracks': tracks})
+
+
 
 @login_required
 def recommendations_view(request):
