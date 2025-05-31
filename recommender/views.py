@@ -103,6 +103,23 @@ def recommendations(request):
         return redirect('preferences')
 
     genre = preference.genre.lower().strip()
+    
+    # Map user-friendly genres to Spotify genres
+    genre_mapping = {
+        'rock': 'rock',
+        'pop': 'pop',
+        'jazz': 'jazz',
+        'hip-hop': 'hip-hop',
+        'classical': 'classical',
+        'electronic': 'electronic',
+        'reggae': 'reggae',
+        'metal': 'metal',
+        'blues': 'blues',
+        'country': 'country'
+    }
+    
+    # Set final_genre based on mapping or default to original genre
+    final_genre = genre_mapping.get(genre, genre)
 
     # SOLUTION 1: Use a predefined list of common Spotify genres
     # This avoids the API call that's causing the 404 error
@@ -132,42 +149,14 @@ def recommendations(request):
     ]
 
     # Check if genre is in our predefined list
-    if genre not in common_spotify_genres:
+    if final_genre not in common_spotify_genres:
         # Try to find a close match or suggest alternatives
-        similar_genres = [g for g in common_spotify_genres if genre in g or g in genre]
+        similar_genres = [g for g in common_spotify_genres if final_genre in g or g in final_genre]
         if similar_genres:
-            messages.warning(request, f"Жанр '{genre}' не знайдено. Спробуйте один з цих: {', '.join(similar_genres[:5])}")
+            messages.warning(request, f"Жанр '{final_genre}' не знайдено. Спробуйте один з цих: {', '.join(similar_genres[:5])}")
         else:
-            messages.error(request, f"Жанр '{genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
+            messages.error(request, f"Жанр '{final_genre}' не підтримується. Доступні жанри: pop, rock, jazz, electronic, hip-hop, classical, та інші.")
         return redirect('preferences')
-
-    # SOLUTION 2: Alternative approach - try to get available genres with better error handling
-    # You can uncomment this if you want to try the original API call with better error handling
-    """
-    try:
-        # Try different methods to get available genres
-        try:
-            # Method 1: Original approach
-            genre_seeds = sp.recommendation_genre_seeds()
-            available_genres = genre_seeds['genres']
-        except:
-            # Method 2: Try making a direct request
-            import requests
-            headers = {'Authorization': f'Bearer {access_token}'}
-            response = requests.get('https://api.spotify.com/v1/recommendations/available-genre-seeds', headers=headers)
-            if response.status_code == 200:
-                available_genres = response.json()['genres']
-            else:
-                # Fallback to common genres
-                available_genres = common_spotify_genres
-    except Exception as e:
-        messages.error(request, f"Помилка при отриmanні жанрів: {e}")
-        available_genres = common_spotify_genres
-
-    if genre not in available_genres:
-        messages.error(request, f"Жанр '{genre}' не підтримується Spotify.")
-        return redirect('preferences')
-    """
 
     # Get recommendations with simpler approach first
     try:
@@ -181,7 +170,8 @@ def recommendations(request):
         
         # Method 2: Try alternative rock genres if original rock failed
         if final_genre == 'rock':
-            alternative_genres = ['alt-rock', 'rock-n-roll', 'classic-rock', 'indie-rock', 'hard-rock']
+            alternative_genres = ['alt-rock', 'rock-n-roll', 'indie-rock', 'punk-rock']
+            results = None
             for alt_genre in alternative_genres:
                 try:
                     print(f"Trying alternative genre: {alt_genre}")
@@ -191,7 +181,8 @@ def recommendations(request):
                     break
                 except:
                     continue
-            else:
+            
+            if not results:
                 # If all rock alternatives fail, try Client Credentials
                 try:
                     from spotipy.oauth2 import SpotifyClientCredentials
@@ -231,7 +222,7 @@ def recommendations(request):
                 
             except Exception as e2:
                 print(f"All methods failed: {e2}")  # Debug line
-                if e.http_status == 401:
+                if hasattr(e, 'http_status') and e.http_status == 401:
                     messages.error(request, "Session expired. Please log in again.")
                     return redirect('spotify-login')
                 else:
