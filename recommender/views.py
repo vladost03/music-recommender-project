@@ -300,12 +300,10 @@ def get_personal_mix_recommendations(sp, limit=10):
             try:
                 # Use different search strategies for variety
                 search_strategies = [
-                    f'genre:"{genre}" year:2020-2024',  # Recent tracks in genre
                     f'{genre} NOT mainstream',  # Less popular tracks
                     f'{genre} indie',  # Independent artists
                     f'{genre} underground',  # Underground tracks
                     f'{genre} new artist',  # New artists
-                    f'genre:"{genre}"',  # Standard genre search
                     f'{genre} popular',  # Popular in genre
                 ]
                 
