@@ -303,7 +303,7 @@ def get_personal_mix_recommendations(sp, limit=10):
                     f'{genre} NOT mainstream',  # Less popular tracks
                     f'{genre} indie',  # Independent artists
                     f'{genre} underground',  # Underground tracks
-                    f'{genre} new artist',  # New artists
+                    f'genre:"{genre}"',  # Standard genre search
                     f'{genre} popular',  # Popular in genre
                 ]
                 
