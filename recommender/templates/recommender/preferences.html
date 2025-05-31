@@ -3,7 +3,7 @@
 {% block title %}Музичні вподобання{% endblock %}
 
 {% block content %}
-<h2>Оберіть свої вподобання</h2>
+<h2>Оберіть жанр для пошуку (оберіть "Personal mix", для пошуку за вашими найпопулярнішими жанрами)</h2>
 <form method="POST">
     {% csrf_token %}
     {{ form.as_p }}
