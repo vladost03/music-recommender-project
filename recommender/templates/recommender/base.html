@@ -16,6 +16,7 @@
         }
         .content {
             flex: 1;
+            padding-bottom: 4rem; /* Increased gap between content and footer */
         }
         .footer {
             background-color: #343a40;
@@ -23,11 +24,27 @@
             margin-top: auto;
         }
         .footer a {
-            color: #adb5bd;
+            color: #dee2e6; /* Brighter text color instead of #adb5bd */
             text-decoration: none;
         }
         .footer a:hover {
             color: #ffffff;
+        }
+        .footer .text-muted {
+            color: #ced4da !important; /* Brighter muted text instead of default Bootstrap muted */
+        }
+        .footer .small.text-muted {
+            color: #ced4da !important; /* Ensure small muted text is also brighter */
+        }
+        
+        /* Additional spacing for buttons before footer */
+        .btn:last-child {
+            margin-bottom: 2rem;
+        }
+        
+        /* Ensure adequate spacing in content areas */
+        .container .text-center:last-child {
+            padding-bottom: 2rem;
         }
     </style>
 </head>
