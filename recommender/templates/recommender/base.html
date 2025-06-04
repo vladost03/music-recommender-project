@@ -46,6 +46,47 @@
         .container .text-center:last-child {
             padding-bottom: 2rem;
         }
+
+        /* Custom styles for user stats dropdown */
+        .user-stats-dropdown {
+            min-width: 350px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .stats-section {
+            margin-bottom: 1rem;
+        }
+        
+        .stats-list {
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        
+        .stats-item {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stats-item:last-child {
+            border-bottom: none;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -59,16 +100,35 @@
                             <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 🎧 {{ spotify_user.display_name|default:spotify_user.spotify_id }}
                             </a>
-                            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-                                <li><h6 class="dropdown-header">Spotify ID: {{ spotify_user.spotify_id }}</h6></li>
-                                {% if spotify_user.email %}
-                                    <li><span class="dropdown-item-text text-muted small">{{ spotify_user.email }}</span></li>
-                                {% endif %}
-                                <li><span class="dropdown-item-text text-muted small">Підписників: {{ spotify_user.followers }}</span></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'recommendations-view' %}">Мої рекомендації</a></li>
-                                <li><a class="dropdown-item" href="{% url 'spotify-logout' %}">Вийти</a></li>
-                            </ul>
+                            <div class="dropdown-menu user-stats-dropdown p-3" aria-labelledby="navbarDropdown">
+                                <!-- User Info Section -->
+                                <div class="stats-section">
+                                    <h6 class="dropdown-header">Spotify ID: {{ spotify_user.spotify_id }}</h6>
+                                    {% if spotify_user.email %}
+                                        <span class="dropdown-item-text text-muted small">{{ spotify_user.email }}</span>
+                                    {% endif %}
+                                    <span class="dropdown-item-text text-muted small">Підписників: {{ spotify_user.followers }}</span>
+                                </div>
+                                
+                                <hr class="dropdown-divider">
+                                
+                                <!-- User Stats Section -->
+                                <div class="stats-section">
+                                    <h6 class="text-muted mb-2">📊 Ваша музична статистика</h6>
+                                    <div id="user-stats-content">
+                                        <div class="text-center">
+                                            <div class="loading-spinner"></div>
+                                            <small class="text-muted">Завантаження статистики...</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <hr class="dropdown-divider">
+                                
+                                <!-- Navigation Links -->
+                                <a class="dropdown-item" href="{% url 'recommendations-view' %}">Мої рекомендації</a>
+                                <a class="dropdown-item" href="{% url 'spotify-logout' %}">Вийти</a>
+                            </div>
                         </li>
                     {% else %}
                         <li class="nav-item">
@@ -190,5 +250,104 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Load user statistics when dropdown is shown
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdown = document.getElementById('navbarDropdown');
+            const statsContent = document.getElementById('user-stats-content');
+            
+            if (dropdown && statsContent) {
+                let statsLoaded = false;
+                
+                dropdown.addEventListener('click', function() {
+                    if (!statsLoaded) {
+                        loadUserStats();
+                        statsLoaded = true;
+                    }
+                });
+            }
+        });
+        
+        function loadUserStats() {
+            const statsContent = document.getElementById('user-stats-content');
+            
+            fetch('/get-user-top-stats/', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    statsContent.innerHTML = `
+                        <div class="text-danger small">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            Помилка завантаження статистики
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                
+                // Top Tracks
+                if (data.top_tracks && data.top_tracks.length > 0) {
+                    html += `
+                        <div class="mb-3">
+                            <strong class="small text-primary">🎵 Топ треки:</strong>
+                            <div class="stats-list">
+                    `;
+                    data.top_tracks.forEach((track, index) => {
+                        html += `<div class="stats-item small">${index + 1}. ${track}</div>`;
+                    });
+                    html += '</div></div>';
+                }
+                
+                // Top Artists
+                if (data.top_artists && data.top_artists.length > 0) {
+                    html += `
+                        <div class="mb-3">
+                            <strong class="small text-success">🎤 Топ виконавці:</strong>
+                            <div class="stats-list">
+                    `;
+                    data.top_artists.forEach((artist, index) => {
+                        html += `<div class="stats-item small">${index + 1}. ${artist}</div>`;
+                    });
+                    html += '</div></div>';
+                }
+                
+                // Top Genres
+                if (data.top_genres && data.top_genres.length > 0) {
+                    html += `
+                        <div class="mb-2">
+                            <strong class="small text-info">🎼 Топ жанри:</strong>
+                            <div class="stats-list">
+                    `;
+                    data.top_genres.forEach((genre, index) => {
+                        html += `<div class="stats-item small">${index + 1}. ${genre}</div>`;
+                    });
+                    html += '</div></div>';
+                }
+                
+                if (html === '') {
+                    html = '<div class="text-muted small">Статистика недоступна. Послухайте більше музики на Spotify!</div>';
+                }
+                
+                statsContent.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading user stats:', error);
+                statsContent.innerHTML = `
+                    <div class="text-danger small">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Помилка завантаження статистики
+                    </div>
+                `;
+            });
+        }
+    </script>
 </body>
 </html>
