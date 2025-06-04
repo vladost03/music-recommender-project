@@ -70,20 +70,29 @@ def get_user_top_stats(request):
         top_genres = [genre for genre, count in genre_counts.most_common(5)]
         
         # If we don't have enough data from short term, try medium term
-        if len(top_tracks) < 5:
-            medium_tracks = sp.current_user_top_tracks(limit=10, time_range='medium_term')
-            for track in medium_tracks['items'][len(top_tracks):]:
-                if len(top_tracks) >= 5:
-                    break
-                artists = ', '.join([artist['name'] for artist in track['artists']])
-                top_tracks.append(f"{artists} - {track['name']}")
+        if len(top_tracks) < 3:
+            try:
+                medium_tracks = sp.current_user_top_tracks(limit=10, time_range='medium_term')
+                for track in medium_tracks['items']:
+                    if len(top_tracks) >= 5:
+                        break
+                    artists = ', '.join([artist['name'] for artist in track['artists']])
+                    track_name = f"{artists} - {track['name']}"
+                    if track_name not in top_tracks:
+                        top_tracks.append(track_name)
+            except:
+                pass
         
-        if len(top_artists) < 5:
-            medium_artists = sp.current_user_top_artists(limit=10, time_range='medium_term')
-            for artist in medium_artists['items'][len(top_artists):]:
-                if len(top_artists) >= 5:
-                    break
-                top_artists.append(artist['name'])
+        if len(top_artists) < 3:
+            try:
+                medium_artists = sp.current_user_top_artists(limit=10, time_range='medium_term')
+                for artist in medium_artists['items']:
+                    if len(top_artists) >= 5:
+                        break
+                    if artist['name'] not in top_artists:
+                        top_artists.append(artist['name'])
+            except:
+                pass
         
         return JsonResponse({
             'top_tracks': top_tracks[:5],
@@ -93,7 +102,7 @@ def get_user_top_stats(request):
         
     except Exception as e:
         print(f"Error getting top stats: {e}")
-        return JsonResponse({'error': 'Failed to get statistics'}, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def welcome(request):

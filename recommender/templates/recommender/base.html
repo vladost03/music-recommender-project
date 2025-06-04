@@ -47,26 +47,52 @@
             padding-bottom: 2rem;
         }
 
-        /* Custom styles for user stats dropdown */
+        /* Custom styles for user stats dropdown - Fixed positioning and larger size */
         .user-stats-dropdown {
-            min-width: 350px;
-            max-height: 400px;
-            overflow-y: auto;
+            min-width: 600px !important;
+            max-width: 800px !important;
+            right: 0 !important;
+            left: auto !important;
+            transform: none !important;
+            position: absolute !important;
+            top: 100% !important;
+            z-index: 1050 !important;
+        }
+        
+        /* Prevent dropdown from going off-screen */
+        .dropdown-menu.show {
+            right: 0 !important;
+            left: auto !important;
         }
         
         .stats-section {
             margin-bottom: 1rem;
         }
         
+        /* Horizontal layout for statistics */
+        .stats-horizontal-container {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .stats-column {
+            flex: 1;
+            min-width: 160px;
+        }
+        
         .stats-list {
-            max-height: 120px;
-            overflow-y: auto;
+            max-height: none; /* Remove scrolling */
+            overflow-y: visible;
             font-size: 0.85rem;
         }
         
         .stats-item {
-            padding: 0.25rem 0;
+            padding: 0.15rem 0;
             border-bottom: 1px solid #e9ecef;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .stats-item:last-child {
@@ -86,6 +112,30 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        /* Ensure navbar dropdown stays within viewport */
+        .navbar .dropdown-menu {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+        }
+
+        /* Media query for smaller screens */
+        @media (max-width: 768px) {
+            .user-stats-dropdown {
+                min-width: 90vw !important;
+                max-width: 95vw !important;
+                right: 5px !important;
+            }
+            
+            .stats-horizontal-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .stats-column {
+                min-width: auto;
+            }
         }
     </style>
 </head>
@@ -112,9 +162,9 @@
                                 
                                 <hr class="dropdown-divider">
                                 
-                                <!-- User Stats Section -->
+                                <!-- User Stats Section - Now Horizontal -->
                                 <div class="stats-section">
-                                    <h6 class="text-muted mb-2">📊 Ваша музична статистика</h6>
+                                    <h6 class="text-muted mb-3">📊 Ваша музична статистика</h6>
                                     <div id="user-stats-content">
                                         <div class="text-center">
                                             <div class="loading-spinner"></div>
@@ -291,48 +341,51 @@
                     return;
                 }
                 
-                let html = '';
+                // Create horizontal layout for statistics
+                let html = '<div class="stats-horizontal-container">';
                 
-                // Top Tracks
+                // Top Tracks Column
                 if (data.top_tracks && data.top_tracks.length > 0) {
                     html += `
-                        <div class="mb-3">
-                            <strong class="small text-primary">🎵 Топ треки:</strong>
+                        <div class="stats-column">
+                            <strong class="small text-primary d-block mb-2">🎵 Топ треки:</strong>
                             <div class="stats-list">
                     `;
                     data.top_tracks.forEach((track, index) => {
-                        html += `<div class="stats-item small">${index + 1}. ${track}</div>`;
+                        html += `<div class="stats-item small" title="${track}">${index + 1}. ${track}</div>`;
                     });
                     html += '</div></div>';
                 }
                 
-                // Top Artists
+                // Top Artists Column
                 if (data.top_artists && data.top_artists.length > 0) {
                     html += `
-                        <div class="mb-3">
-                            <strong class="small text-success">🎤 Топ виконавці:</strong>
+                        <div class="stats-column">
+                            <strong class="small text-success d-block mb-2">🎤 Топ виконавці:</strong>
                             <div class="stats-list">
                     `;
                     data.top_artists.forEach((artist, index) => {
-                        html += `<div class="stats-item small">${index + 1}. ${artist}</div>`;
+                        html += `<div class="stats-item small" title="${artist}">${index + 1}. ${artist}</div>`;
                     });
                     html += '</div></div>';
                 }
                 
-                // Top Genres
+                // Top Genres Column
                 if (data.top_genres && data.top_genres.length > 0) {
                     html += `
-                        <div class="mb-2">
-                            <strong class="small text-info">🎼 Топ жанри:</strong>
+                        <div class="stats-column">
+                            <strong class="small text-info d-block mb-2">🎼 Топ жанри:</strong>
                             <div class="stats-list">
                     `;
                     data.top_genres.forEach((genre, index) => {
-                        html += `<div class="stats-item small">${index + 1}. ${genre}</div>`;
+                        html += `<div class="stats-item small" title="${genre}">${index + 1}. ${genre}</div>`;
                     });
                     html += '</div></div>';
                 }
                 
-                if (html === '') {
+                html += '</div>'; // Close horizontal container
+                
+                if (html === '<div class="stats-horizontal-container"></div>') {
                     html = '<div class="text-muted small">Статистика недоступна. Послухайте більше музики на Spotify!</div>';
                 }
                 
