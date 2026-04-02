@@ -18,13 +18,6 @@ from spotipy.oauth2 import SpotifyOAuth
 # Завантаження змінних середовища з .env файлу
 load_dotenv()
 
-sp_oauth = SpotifyOAuth(
-    client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-    client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
-    redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
-    scope="user-library-read user-read-playback-state user-top-read user-read-recently-played"
-)
-
 # Шлях до кореневої директорії проєкту
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,10 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-default-key')
 
 # Режим розробки
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 # Дозволені хости (можеш додати IP сервера або домен пізніше)
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Встановлені застосунки
 INSTALLED_APPS = [
