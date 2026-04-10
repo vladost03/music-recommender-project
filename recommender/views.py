@@ -7,6 +7,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 
+from .services.recommendation_service import get_spotify_user_info
 from .forms import UserPreferenceForm
 from .models import TrackRecommendation
 from .services.recommendation_service import recommendations as generate_recommendations
@@ -19,26 +20,6 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
     scope="user-library-read user-read-playback-state user-top-read user-read-recently-played"
 )
-
-
-def get_spotify_user_info(request):
-    """Helper function to get Spotify user info if available"""
-    if 'access_token' not in request.session:
-        return None
-    
-    try:
-        access_token = request.session['access_token']
-        sp = spotipy.Spotify(auth=access_token)
-        user_info = sp.current_user()
-        return {
-            'spotify_id': user_info.get('id'),
-            'display_name': user_info.get('display_name', user_info.get('id')),
-            'email': user_info.get('email'),
-            'followers': user_info.get('followers', {}).get('total', 0)
-        }
-    except:
-        return None
-
 
 def get_user_top_stats(request):
     """Get user's top 5 tracks, artists, and genres based on recent listening"""

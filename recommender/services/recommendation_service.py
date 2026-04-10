@@ -1,6 +1,5 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from views import get_spotify_user_info
 import spotipy
 
 from ..models import TrackRecommendation, UserPreference
@@ -21,6 +20,26 @@ def refresh_spotify_token(request, sp_oauth):
     except Exception as e:
         print(f"Token refresh failed: {e}")
     return request.session.get('access_token')
+
+
+def get_spotify_user_info(request):
+    """Helper function to get Spotify user info if available"""
+    if 'access_token' not in request.session:
+        return None
+    
+    try:
+        access_token = request.session['access_token']
+        sp = spotipy.Spotify(auth=access_token)
+        user_info = sp.current_user()
+        return {
+            'spotify_id': user_info.get('id'),
+            'display_name': user_info.get('display_name', user_info.get('id')),
+            'email': user_info.get('email'),
+            'followers': user_info.get('followers', {}).get('total', 0)
+        }
+    except:
+        return None
+
 
 def recommendations(request, sp_oauth):
     """Generate music recommendations based on user preferences"""
